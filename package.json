@@ -1,0 +1,28 @@
+{
+  "name": "angular2App",
+  "version": "1.0.0",
+  "description": "Default template for fis angular 2 app.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/fis-scaffold/angular2-app.git"
+  },
+  "keywords": [
+    "fis",
+    "scaffold"
+  ],
+  "author": "fex",
+  "license": "BSD",
+  "bugs": {
+    "url": "https://github.com/fis-scaffold/angular2-app/issues"
+  },
+  "homepage": "https://github.com/fis-scaffold/angular2-app",
+  "dependencies": {
+    "fis3-hook-system": "^0.0.4",
+    "fis3-parser-typescript": "^0.1.0",
+    "fis3-postpackager-loader": "^1.3.4"
+  }
+}
