@@ -1,5 +1,5 @@
 /*
- * SystemJS v0.19.5
+ * SystemJS v0.19.6
  */
 (function() {
 function bootstrap() {(function(__global) {
@@ -595,7 +595,7 @@ function logloads(loads) {
 
     // non-executing link variation for loader tracing
     // on the server. Not in spec.
-    /***/
+    
     if (linkSet.loader.loaderObj.execute === false) {
       var loads = [].concat(linkSet.loads);
       for (var i = 0, l = loads.length; i < l; i++) {
@@ -612,7 +612,7 @@ function logloads(loads) {
       }
       return linkSet.resolve(startingLoad);
     }
-    /***/
+    
 
     var abrupt = doLink(linkSet);
 
@@ -989,183 +989,6 @@ function applyPaths(paths, name) {
 function LoaderProto() {}
 LoaderProto.prototype = Loader.prototype;
 SystemLoader.prototype = new LoaderProto();
-  var fetchTextFromURL;
-  if (typeof XMLHttpRequest != 'undefined') {
-    fetchTextFromURL = function(url, authorization, fulfill, reject) {
-      var xhr = new XMLHttpRequest();
-      var sameDomain = true;
-      var doTimeout = false;
-      if (!('withCredentials' in xhr)) {
-        // check if same domain
-        var domainCheck = /^(\w+:)?\/\/([^\/]+)/.exec(url);
-        if (domainCheck) {
-          sameDomain = domainCheck[2] === window.location.host;
-          if (domainCheck[1])
-            sameDomain &= domainCheck[1] === window.location.protocol;
-        }
-      }
-      if (!sameDomain && typeof XDomainRequest != 'undefined') {
-        xhr = new XDomainRequest();
-        xhr.onload = load;
-        xhr.onerror = error;
-        xhr.ontimeout = error;
-        xhr.onprogress = function() {};
-        xhr.timeout = 0;
-        doTimeout = true;
-      }
-      function load() {
-        fulfill(xhr.responseText);
-      }
-      function error() {
-        reject(new Error('XHR error' + (xhr.status ? ' (' + xhr.status + (xhr.statusText ? ' ' + xhr.statusText  : '') + ')' : '') + ' loading ' + url));
-      }
-
-      xhr.onreadystatechange = function () {
-        if (xhr.readyState === 4) {
-          if (xhr.status === 200 || (xhr.status == 0 && xhr.responseText)) {
-            load();
-          } else {
-            error();
-          }
-        }
-      };
-      xhr.open("GET", url, true);
-
-      if (xhr.setRequestHeader) {
-        xhr.setRequestHeader('Accept', 'application/x-es-module, */*');
-        // can set "authorization: true" to enable withCredentials only
-        if (authorization) {
-          if (typeof authorization == 'string')
-            xhr.setRequestHeader('Authorization', authorization);
-          xhr.withCredentials = true;
-        }
-      }
-
-      if (doTimeout) {
-        setTimeout(function() {
-          xhr.send();
-        }, 0);
-      } else {
-        xhr.send(null);
-      }
-    };
-  }
-  else if (typeof require != 'undefined') {
-    var fs;
-    fetchTextFromURL = function(url, authorization, fulfill, reject) {
-      if (url.substr(0, 8) != 'file:///')
-        throw new Error('Unable to fetch "' + url + '". Only file URLs of the form file:/// allowed running in Node.');
-      fs = fs || require('fs');
-      if (isWindows)
-        url = url.replace(/\//g, '\\').substr(8);
-      else
-        url = url.substr(7);
-      return fs.readFile(url, function(err, data) {
-        if (err) {
-          return reject(err);
-        }
-        else {
-          // Strip Byte Order Mark out if it's the leading char
-          var dataString = data + '';
-          if (dataString[0] === '\ufeff')
-            dataString = dataString.substr(1);
-
-          fulfill(dataString);
-        }
-      });
-    };
-  }
-  else {
-    throw new TypeError('No environment fetch API available.');
-  }
-
-  SystemLoader.prototype.fetch = function(load) {
-    return new Promise(function(resolve, reject) {
-      fetchTextFromURL(load.address, undefined, resolve, reject);
-    });
-  };
-/*
- * Traceur, Babel and TypeScript transpile hook for Loader
- */
-var transpile = (function() {
-
-  // use Traceur by default
-  Loader.prototype.transpiler = 'traceur';
-
-  function transpile(load) {
-    var self = this;
-
-    return Promise.resolve(__global[self.transpiler == 'typescript' ? 'ts' : self.transpiler]
-        || (self.pluginLoader || self)['import'](self.transpiler))
-    .then(function(transpiler) {
-      if (transpiler.__useDefault)
-        transpiler = transpiler['default'];
-
-      var transpileFunction;
-      if (transpiler.Compiler)
-        transpileFunction = traceurTranspile;
-      else if (transpiler.createLanguageService)
-        transpileFunction = typescriptTranspile;
-      else
-        transpileFunction = babelTranspile;
-
-      // note __moduleName will be part of the transformer meta in future when we have the spec for this
-      return '(function(__moduleName){' + transpileFunction.call(self, load, transpiler) + '\n})("' + load.name + '");\n//# sourceURL=' + load.address + '!transpiled';
-    });
-  };
-
-  function traceurTranspile(load, traceur) {
-    var options = this.traceurOptions || {};
-    options.modules = 'instantiate';
-    options.script = false;
-    if (options.sourceMaps === undefined)
-      options.sourceMaps = 'inline';
-    options.filename = load.address;
-    options.inputSourceMap = load.metadata.sourceMap;
-    options.moduleName = false;
-
-    var compiler = new traceur.Compiler(options);
-
-    return doTraceurCompile(load.source, compiler, options.filename);
-  }
-  function doTraceurCompile(source, compiler, filename) {
-    try {
-      return compiler.compile(source, filename);
-    }
-    catch(e) {
-      // traceur throws an error array
-      throw e[0];
-    }
-  }
-
-  function babelTranspile(load, babel) {
-    var options = this.babelOptions || {};
-    options.modules = 'system';
-    if (options.sourceMap === undefined)
-      options.sourceMap = 'inline';
-    options.inputSourceMap = load.metadata.sourceMap;
-    options.filename = load.address;
-    options.code = true;
-    options.ast = false;
-
-    return babel.transform(load.source, options).code;
-  }
-
-  function typescriptTranspile(load, ts) {
-    var options = this.typescriptOptions || {};
-    options.target = options.target || ts.ScriptTarget.ES5;
-    if (options.sourceMap === undefined)
-      options.sourceMap = true;
-    if (options.sourceMap)
-      options.inlineSourceMap = true;
-
-    options.module = ts.ModuleKind.System;
-
-    return ts.transpile(load.source, options, load.address);
-  }
-
-  return transpile;
-})();
 // SystemJS Loader Class and Extension helpers
 
 function SystemJSLoader() {
@@ -1279,133 +1102,7 @@ function extendMeta(a, b, prepend) {
 function warn(msg) {
   if (this.warnings && typeof console != 'undefined' && console.warn)
     console.warn(msg);
-}// we define a __exec for globally-scoped execution
-// used by module format implementations
-var __exec;
-
-(function() {
-
-  // System clobbering protection (mostly for Traceur)
-  var curSystem;
-  var callCounter = 0;
-  var curLoad;
-  function preExec(loader, load) {
-    if (callCounter++ == 0)
-      curSystem = __global.System;
-    __global.System = loader;
-    curLoad = load;
-  }
-  function postExec() {
-    if (--callCounter == 0)
-      __global.System = curSystem;
-    curLoad = undefined;
-  }
-
-  // System.register, System.registerDynamic, AMD define pipeline
-  // if currently evalling code here, immediately reduce the registered entry against the load record
-  hook('pushRegister_', function() {
-    return function(register) {
-      if (!curLoad)
-        return false;
-
-      this.reduceRegister_(curLoad, register);
-      return true;
-    };
-  });
-
-  var hasBtoa = typeof btoa != 'undefined';
-
-  function getSource(load) {
-    var lastLineIndex = load.source.lastIndexOf('\n');
-
-    // wrap ES formats with a System closure for System global encapsulation
-    var wrap = load.metadata.format == 'esm' || load.metadata.format == 'register' || load.metadata.bundle;
-
-    return (wrap ? '(function(System) {' : '') + load.source + (wrap ? '\n})(System);' : '')
-        // adds the sourceURL comment if not already present
-        + (load.source.substr(lastLineIndex, 15) != '\n//# sourceURL=' 
-          ? '\n//# sourceURL=' + load.address + (load.metadata.sourceMap ? '!transpiled' : '') : '')
-        // add sourceMappingURL if load.metadata.sourceMap is set
-        + (load.metadata.sourceMap && hasBtoa && 
-          '\n//# sourceMappingURL=data:application/json;base64,' + btoa(unescape(encodeURIComponent(load.metadata.sourceMap))) || '')
-  }
-
-  function evalExec(load) {
-    if (load.metadata.integrity)
-      throw new TypeError('Subresource integrity checking is not supported in Web Workers or Chrome Extensions.');
-    try {
-      preExec(this, load);
-      new Function(getSource(load)).call(__global);
-      postExec();
-    }
-    catch(e) {
-      postExec();
-      throw addToError(e, 'Evaluating ' + load.address);
-    }
-  }
-
-  // use script injection eval to get identical global script behaviour
-  if (typeof document != 'undefined' && document.getElementsByTagName) {
-    var head;
-
-    var scripts = document.getElementsByTagName('script');
-    $__curScript = scripts[scripts.length - 1];
-    __exec = function(load) {
-      if (!this.globalEvaluationScope)
-        return evalExec.call(this, load);
-
-      if (!head)
-        head = document.head || document.body || document.documentElement;
-
-      var script = document.createElement('script');
-      script.text = getSource(load);
-      var onerror = window.onerror;
-      var e;
-      window.onerror = function(_e) {
-        e = addToError(_e, 'Evaluating ' + load.address);
-      }
-      preExec(this, load);
-
-      if (load.metadata.integrity)
-        script.setAttribute('integrity', load.metadata.integrity);
-      if (load.metadata.nonce)
-        script.setAttribute('nonce', load.metadata.nonce);
-
-      head.appendChild(script);
-      head.removeChild(script);
-      postExec();
-      window.onerror = onerror;
-      if (e)
-        throw e;
-    };
-  }
-
-  // global scoped eval for node
-  else if (typeof require != 'undefined') {
-    var vmModule = 'vm';
-    var vm = require(vmModule);
-    __exec = function vmExec(load) {
-      if (!this.globalEvaluationScope)
-        return evalExec.call(this, load);
-
-      if (load.metadata.integrity)
-        throw new TypeError('Subresource integrity checking is unavailable in Node.');
-      try {
-        preExec(this, load);
-        vm.runInThisContext(getSource(load));
-        postExec();
-      }
-      catch(e) {
-        postExec();
-        throw addToError(e.toString(), 'Evaluating ' + load.address);
-      }
-    };
-  }
-  else {
-    __exec = evalExec;
-  }
-
-})();/*
+}/*
   SystemJS map support
   
   Provides map configuration through
@@ -1499,10 +1196,6 @@ hookConstructor(function(constructor) {
 
     // support the empty module, as a concept
     this.set('@empty', this.newModule({}));
-
-    // include the node require since we're overriding it
-    if (typeof require != 'undefined' && require.resolve && typeof process != 'undefined')
-      this._nodeRequire = require;
   };
 });
 
@@ -1521,16 +1214,8 @@ hookConstructor(function(constructor) {
 
   The final normalization 
  */
-
 hook('normalize', function(normalize) {
   return function(name, parentName) {
-    // dynamically load node-core modules when requiring `@node/fs` for example
-    if (name.substr(0, 6) == '@node/') {
-      if (!this._nodeRequire)
-        throw new TypeError('Can only load node core modules in Node.');
-      this.set(name, this.newModule(getESModule(this._nodeRequire(name.substr(6)))));
-    }
-
     // first run map config
     name = normalize.apply(this, arguments);
     
@@ -1860,7 +1545,7 @@ hook('normalize', function(normalize) {
  * Detailed Behaviours
  * - main can have a leading "./" can be added optionally
  * - map and defaultExtension are applied to the main
- * - defaultExtension adds the extension only if no other extension is present
+ * - defaultExtension adds the extension only if the exact extension is not present
  * - defaultJSExtensions applies after map when defaultExtension is not set
  * - if a modules value is available for a module, map and defaultExtension are skipped
  * - like global map, package map also applies to subpaths (sizzle/x, ./vendor/another/sub)
@@ -2949,7 +2634,7 @@ function createEntry() {
     if (exports && exports.__esModule)
       entry.esModule = exports;
     // set module as 'default' export, then fake named exports by iterating properties
-    else if (entry.esmExports)
+    else if (entry.esmExports && exports !== __global)
       entry.esModule = getESModule(exports);
     // just use the 'default' export
     else
@@ -3121,200 +2806,6 @@ function createEntry() {
     };
   });
 })();
-/*
- * Extension to detect ES6 and auto-load Traceur or Babel for processing
- */
-(function() {
-  // good enough ES6 module detection regex - format detections not designed to be accurate, but to handle the 99% use case
-  var esmRegEx = /(^\s*|[}\);\n]\s*)(import\s+(['"]|(\*\s+as\s+)?[^"'\(\)\n;]+\s+from\s+['"]|\{)|export\s+\*\s+from\s+["']|export\s+(\{|default|function|class|var|const|let|async\s+function))/;
-
-  var traceurRuntimeRegEx = /\$traceurRuntime\s*\./;
-  var babelHelpersRegEx = /babelHelpers\s*\./;
-
-  hook('translate', function(translate) {
-    return function(load) {
-      var loader = this;
-      return translate.call(loader, load)
-      .then(function(source) {
-        // detect & transpile ES6
-        if (load.metadata.format == 'esm' || load.metadata.format == 'es6' || !load.metadata.format && source.match(esmRegEx)) {
-          if (load.metadata.format == 'es6')
-            warn.call(loader, 'Module ' + load.name + ' has metadata setting its format to "es6", which is deprecated.\nThis should be updated to "esm".');
-          load.metadata.format = 'esm';
-
-          if (loader.transpiler === false)
-            throw new TypeError('Unable to dynamically transpile ES module as System.transpiler set to false.');
-
-          // setting loadedTranspiler_ = false tells the next block to
-          // do checks for setting transpiler metadata
-          loader.loadedTranspiler_ = loader.loadedTranspiler_ || false;
-          if (loader.pluginLoader)
-            loader.pluginLoader.loadedTranspiler_ = loader.loadedTranspiler_ || false;
-
-          // builder support
-          if (loader.builder)
-            load.metadata.originalSource = load.source;
-
-          // defined in es6-module-loader/src/transpile.js
-          return transpile.call(loader, load)
-          .then(function(source) {
-            // clear sourceMap as transpiler embeds it
-            load.metadata.sourceMap = undefined;
-            return source;
-          });
-        }
-
-        // load the transpiler correctly
-        if (loader.loadedTranspiler_ === false && load.name == loader.normalizeSync(loader.transpiler)) {
-          // always load transpiler as a global
-          if (source.length > 100) {
-            load.metadata.format = load.metadata.format || 'global';
-
-            if (loader.transpiler === 'traceur')
-              load.metadata.exports = 'traceur';
-            if (loader.transpiler === 'typescript')
-              load.metadata.exports = 'ts';
-          }
-
-          loader.loadedTranspiler_ = true;
-        }
-
-        // load the transpiler runtime correctly
-        if (loader.loadedTranspilerRuntime_ === false) {
-          if (load.name == loader.normalizeSync('traceur-runtime')
-              || load.name == loader.normalizeSync('babel/external-helpers*')) {
-            if (source.length > 100)
-              load.metadata.format = load.metadata.format || 'global';
-
-            loader.loadedTranspilerRuntime_ = true;
-          }
-        }
-
-        // detect transpiler runtime usage to load runtimes
-        if ((load.metadata.format == 'register' || load.metadata.bundle) && loader.loadedTranspilerRuntime_ !== true) {
-          if (!__global.$traceurRuntime && load.source.match(traceurRuntimeRegEx)) {
-            loader.loadedTranspilerRuntime_ = loader.loadedTranspilerRuntime_ || false;
-            return loader['import']('traceur-runtime').then(function() {
-              return source;
-            });
-          }
-          if (!__global.babelHelpers && load.source.match(babelHelpersRegEx)) {
-            loader.loadedTranspilerRuntime_ = loader.loadedTranspilerRuntime_ || false;
-            return loader['import']('babel/external-helpers').then(function() {
-              return source;
-            });
-          }
-        }
-
-        return source;
-      });
-    };
-  });
-
-})();
-/*
-  SystemJS Global Format
-
-  Supports
-    metadata.deps
-    metadata.globals
-    metadata.exports
-
-  Without metadata.exports, detects writes to the global object.
-*/
-var __globalName = typeof self != 'undefined' ? 'self' : 'global';
-
-hook('reduceRegister_', function(reduceRegister) {
-  return function(load, register) {
-    if (register)
-      return reduceRegister.call(this, load, register);
-
-    load.metadata.format = 'global';
-    var entry = load.metadata.entry = createEntry();
-    var globalValue = readMemberExpression(load.metadata.exports, __global);
-    entry.execute = function() {
-      return globalValue;
-    };
-  };
-});
-
-hook('fetch', function(fetch) {
-  return function(load) {
-    if (load.metadata.exports && !load.metadata.format)
-      load.metadata.format = 'global';
-
-    // A global with exports, no globals and no deps
-    // can be loaded via a script tag
-    if (load.metadata.format == 'global' && !load.metadata.authorization
-        && load.metadata.exports && !load.metadata.globals 
-        && (!load.metadata.deps || load.metadata.deps.length == 0)
-        && load.metadata.scriptLoad !== false)
-      load.metadata.scriptLoad = true;
-
-    return fetch.call(this, load);
-  };
-});
-
-// ideally we could support script loading for globals, but the issue with that is that
-// we can't do it with AMD support side-by-side since AMD support means defining the
-// global define, and global support means not definining it, yet we don't have any hook
-// into the "pre-execution" phase of a script tag being loaded to handle both cases
-
-
-hook('instantiate', function(instantiate) {
-  return function(load) {
-    var loader = this;
-
-    if (!load.metadata.format)
-      load.metadata.format = 'global';
-
-    // globals shorthand support for:
-    // globals = ['Buffer'] where we just require 'Buffer' in the current context
-    if (load.metadata.globals) {
-      if (load.metadata.globals instanceof Array) {
-        var globals = {};
-        for (var i = 0; i < load.metadata.globals.length; i++)
-          globals[load.metadata.globals[i]] = load.metadata.globals[i];
-        load.metadata.globals = globals;
-      }
-    }
-
-    // global is a fallback module format
-    if (load.metadata.format == 'global' && !load.metadata.registered) {
-
-      var entry = createEntry();
-
-      load.metadata.entry = entry;
-
-      entry.deps = [];
-
-      for (var g in load.metadata.globals)
-        entry.deps.push(load.metadata.globals[g]);
-
-      entry.execute = function(require, exports, module) {
-
-        var globals;
-        if (load.metadata.globals) {
-          globals = {};
-          for (var g in load.metadata.globals)
-            globals[g] = require(load.metadata.globals[g]);
-        }
-        
-        var exportName = load.metadata.exports;
-
-        if (exportName)
-          load.source += '\n' + __globalName + '["' + exportName + '"] = ' + exportName + ';';
-
-        var retrieveGlobal = loader.get('@@global-helpers').prepareGlobal(module.id, exportName, globals);
-
-        __exec.call(loader, load);
-
-        return retrieveGlobal();
-      }
-    }
-    return instantiate.call(this, load);
-  };
-});
 hookConstructor(function(constructor) {
   return function() {
     var loader = this;
@@ -3323,7 +2814,7 @@ hookConstructor(function(constructor) {
     var hasOwnProperty = Object.prototype.hasOwnProperty;
 
     // bare minimum ignores for IE8
-    var ignoredGlobalProps = ['_g', 'sessionStorage', 'localStorage', 'clipboardData', 'frames', 'external', 'mozAnimationStartTime', 'webkitStorageInfo', 'webkitIndexedDB'];
+    var ignoredGlobalProps = ['_g', 'sessionStorage', 'localStorage', 'clipboardData', 'frames', 'frameElement', 'external', 'mozAnimationStartTime', 'webkitStorageInfo', 'webkitIndexedDB'];
 
     var globalSnapshot;
 
@@ -3424,125 +2915,6 @@ hookConstructor(function(constructor) {
     }));
   };
 });
-/*
-  SystemJS CommonJS Format
-*/
-(function() {
-  // CJS Module Format
-  // require('...') || exports[''] = ... || exports.asd = ... || module.exports = ...
-  var cjsExportsRegEx = /(?:^\uFEFF?|[^$_a-zA-Z\xA0-\uFFFF.]|module\.)exports\s*(\[['"]|\.)|(?:^\uFEFF?|[^$_a-zA-Z\xA0-\uFFFF.])module\.exports\s*[=,]/;
-  // RegEx adjusted from https://github.com/jbrantly/yabble/blob/master/lib/yabble.js#L339
-  var cjsRequireRegEx = /(?:^\uFEFF?|[^$_a-zA-Z\xA0-\uFFFF."'])require\s*\(\s*("[^"\\]*(?:\\.[^"\\]*)*"|'[^'\\]*(?:\\.[^'\\]*)*')\s*\)/g;
-  var commentRegEx = /(\/\*([\s\S]*?)\*\/|([^:]|^)\/\/(.*)$)/mg;
-
-  function getCJSDeps(source) {
-    cjsRequireRegEx.lastIndex = commentRegEx.lastIndex = 0;
-
-    var deps = [];
-
-    // track comments in the source
-    var match;
-    
-    var commentLocations = [];
-    if (source.length / source.split('\n').length < 200) {
-      while (match = commentRegEx.exec(source))
-        commentLocations.push([match.index, match.index + match[0].length]);
-    }
-
-    while (match = cjsRequireRegEx.exec(source)) {
-      // ensure we're not in a comment location
-      var inComment = false;
-      for (var i = 0; i < commentLocations.length; i++) {
-        if (commentLocations[i][0] < match.index && commentLocations[i][1] > match.index + match[0].length)
-          inComment = true;
-      }
-      if (!inComment)
-        deps.push(match[1].substr(1, match[1].length - 2));
-    }
-
-    return deps;
-  }
-
-  if (typeof window != 'undefined' && typeof document != 'undefined' && window.location)
-    var windowOrigin = location.protocol + '//' + location.hostname + (location.port ? ':' + location.port : '');
-
-  hook('instantiate', function(instantiate) {
-    return function(load) {
-      var loader = this;
-      if (!load.metadata.format) {
-        cjsExportsRegEx.lastIndex = 0;
-        cjsRequireRegEx.lastIndex = 0;
-        if (cjsRequireRegEx.exec(load.source) || cjsExportsRegEx.exec(load.source))
-          load.metadata.format = 'cjs';
-      }
-
-      if (load.metadata.format == 'cjs') {
-        var metaDeps = load.metadata.deps;
-        var deps = getCJSDeps(load.source);
-
-        for (var g in load.metadata.globals)
-          deps.push(load.metadata.globals[g]);
-
-        var entry = createEntry();
-
-        load.metadata.entry = entry;
-
-        entry.deps = deps;
-        entry.executingRequire = true;
-        entry.execute = function(require, exports, module) {
-          // ensure meta deps execute first
-          for (var i = 0; i < metaDeps.length; i++)
-            require(metaDeps[i]);
-          var address = load.address || '';
-
-          var dirname = address.split('/');
-          dirname.pop();
-          dirname = dirname.join('/');
-
-          if (address.substr(0, 8) == 'file:///') {
-            address = address.substr(7);
-            dirname = dirname.substr(7);
-
-            // on windows remove leading '/'
-            if (isWindows) {
-              address = address.substr(1);
-              dirname = dirname.substr(1);
-            }
-          }
-          else if (windowOrigin && address.substr(0, windowOrigin.length) === windowOrigin) {
-            address = address.substr(windowOrigin.length);
-            dirname = dirname.substr(windowOrigin.length);
-          }
-
-          // disable AMD detection
-          var define = __global.define;
-          __global.define = undefined;
-
-          __global.__cjsWrapper = {
-            exports: exports,
-            args: [require, exports, module, address, dirname, __global, __global]
-          };
-
-          var globals = '';
-          if (load.metadata.globals) {
-            for (var g in load.metadata.globals)
-              globals += 'var ' + g + ' = require("' + load.metadata.globals[g] + '");';
-          }
-
-          load.source = "(function(require, exports, module, __filename, __dirname, global, GLOBAL) {" + globals
-              + load.source + "\n}).apply(__cjsWrapper.exports, __cjsWrapper.args);";
-
-          __exec.call(loader, load);
-
-          __global.__cjsWrapper = undefined;
-          __global.define = define;
-        };
-      }
-
-      return instantiate.call(loader, load);
-    };
-  });
-})();
 /*
  * AMD Helper function module
  * Separated into its own file as this is the part needed for full AMD support in SFX builds
@@ -3794,62 +3166,6 @@ hookConstructor(function(constructor) {
     loader.amdRequire = require;
   };
 });/*
-  SystemJS AMD Format
-  Provides the AMD module format definition at System.format.amd
-  as well as a RequireJS-style require on System.require
-*/
-(function() {
-  // AMD Module Format Detection RegEx
-  // define([.., .., ..], ...)
-  // define(varName); || define(function(require, exports) {}); || define({})
-  var amdRegEx = /(?:^\uFEFF?|[^$_a-zA-Z\xA0-\uFFFF.])define\s*\(\s*("[^"]+"\s*,\s*|'[^']+'\s*,\s*)?\s*(\[(\s*(("[^"]+"|'[^']+')\s*,|\/\/.*\r?\n|\/\*(.|\s)*?\*\/))*(\s*("[^"]+"|'[^']+')\s*,?)?(\s*(\/\/.*\r?\n|\/\*(.|\s)*?\*\/))*\s*\]|function\s*|{|[_$a-zA-Z\xA0-\uFFFF][_$a-zA-Z0-9\xA0-\uFFFF]*\))/;
-
-  hook('fetch', function(fetch) {
-    return function(load) {
-      if (load.metadata.format === 'amd' 
-          && !load.metadata.authorization 
-          && load.metadata.scriptLoad !== false)
-        load.metadata.scriptLoad = true;
-      // script load implies define global leak
-      if (load.metadata.scriptLoad && isBrowser)
-        this.get('@@amd-helpers').createDefine();
-      return fetch.call(this, load);
-    };
-  });
-
-  hook('instantiate', function(instantiate) {
-    return function(load) {
-      var loader = this;
-      
-      if (load.metadata.format == 'amd' || !load.metadata.format && load.source.match(amdRegEx)) {
-        load.metadata.format = 'amd';
-        
-        if (!loader.builder && loader.execute !== false) {
-          var removeDefine = this.get('@@amd-helpers').createDefine();
-
-          try {
-            __exec.call(loader, load);
-          }
-          finally {
-            removeDefine();
-          }
-
-          if (!load.metadata.entry && !load.metadata.bundle)
-            throw new TypeError('AMD module ' + load.name + ' did not define');
-        }
-        else {
-          load.metadata.execute = function() {
-            return load.metadata.builderExecute.apply(this, arguments);
-          };
-        }
-      }
-
-      return instantiate.call(loader, load);
-    };
-  });
-
-})();
-/*
   SystemJS Loader Plugin Support
 
   Supports plugin loader syntax with "!", or via metadata.loader
@@ -4514,8 +3830,27 @@ function getBundleFor(loader, name) {
   });
 })();
   
-System = new SystemJSLoader();
-System.version = '0.19.5 Standard';
+/*
+ * Script-only addition used for production loader
+ *
+ */
+hookConstructor(function(constructor) {
+  return function() {
+    constructor.apply(this, arguments);
+
+    // prepare amd define
+    if (this.has('@@amd-helpers'))
+      this.get('@@amd-helpers').createDefine();
+  };
+});
+
+hook('fetch', function(fetch) {
+  return function(load) {
+    load.metadata.scriptLoad = true;
+    return fetch.call(this, load);
+  };
+});System = new SystemJSLoader();
+System.version = '0.19.6 CSP';
   // -- exporting --
 
   if (typeof exports === 'object')

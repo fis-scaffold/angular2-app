@@ -1,5 +1,5 @@
-/// <reference path="./bundles/typings/es6-shim/es6-shim.d.ts" />
-/// <reference path="./bundles/typings/angular2/angular2.d.ts" />
+/// <reference path="./components/angular2/typings/es6-shim/es6-shim.d.ts" />
+/// <reference path="./components/angular2/typings/angular2/angular2.d.ts" />
 import {Component, bootstrap, FORM_DIRECTIVES, CORE_DIRECTIVES} from 'angular2/angular2';
 
 var HEROES: Hero[] = [
