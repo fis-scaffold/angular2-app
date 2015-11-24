@@ -24,5 +24,5 @@
     "fis3-hook-system": "^0.1.1",
     "fis3-parser-typescript": "^0.1.2",
     "fis3-postpackager-loader": "^1.3.6"
-  },
+  }
 }
