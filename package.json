@@ -36,6 +36,6 @@
     "fis3-hook-commonjs": "^0.1.22",
     "fis3-parser-typescript": "^0.1.2",
     "fis3-postpackager-loader": "^1.3.6",
-    "fis3-hook-node_modules": "^2.2.7",
+    "fis3-hook-node_modules": "^2.2.7"
   }
 }
